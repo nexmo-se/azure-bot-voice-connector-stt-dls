@@ -1,0 +1,16 @@
+# Speech service key (in keys and endpoint section) - one of the keys
+MSA_SPEECH_SERVICE_KEY=xxxx
+
+# Azure services region
+MSA_REGION=westus
+
+# Bot name
+MSA_BOT_NAME=TheBotName
+
+
+
+
+
+
+
+
