@@ -49,16 +49,52 @@ function reqCallback(error, response, body) {
       console.log("Webhook call status to VAPI application:", body);
     };  
 }
-  
-//-----------
 
-async function returnReply(request, reply, languageCode, uuid, webhookUrl, customParams) {
+//--- Send STT result to client application ---
+
+async function returnTranscript(text, languageCode, uuid, webhookUrl, conferenceName, customParams) {
+
+  const result = {
+    'vapiUuid': uuid,
+    'transcript': text,
+    'languageCode': languageCode,
+    'confName': conferenceName
+  };
+
+  // return custom properties
+  const cParameters = JSON.parse(customParams);
+  // console.log('cParameters:', cParameters);
+
+  for (let key in cParameters) {
+    if (cParameters.hasOwnProperty(key)) {
+        // console.log(key + " -> " + cParameters[key]);
+        result[key] =  cParameters[key];
+    }
+  }     
+
+  console.log("result:", JSON.stringify(result));
+
+  const reqOptions = {
+    url: webhookUrl,
+    method: 'POST',
+    headers: reqHeaders,
+    body: JSON.stringify(result)
+  };
+
+  webHookRequest(reqOptions, reqCallback);
+
+}
+  
+//---  Send Bot reply (text) to client application ---
+
+async function returnBotReply(request, reply, languageCode, uuid, webhookUrl, conferenceName, customParams) {
 
   const result = {
     'vapiUuid': uuid,
     'request': request,
     'reply': reply,
-    'languageCode': languageCode
+    'languageCode': languageCode,
+    'confName': conferenceName
   };
 
   // return custom properties
@@ -95,6 +131,7 @@ app.ws('/socket', async (ws, req) => {
   console.log('original call uuid:', originalUuid);
 
   const webhookUrl = req.query.webhook_url;
+  const confName = req.query.conference_name;
 
   console.log('>>> webhookUrl:', webhookUrl);
 
@@ -128,12 +165,18 @@ app.ws('/socket', async (ws, req) => {
 
   const msaSpeechRecognizer = new msaSpeechSdk.SpeechRecognizer(msaSpeechConfig, msaAudioConfig);
 
+  console.log('>>> msaSpeechRecognizer:');
+  console.log(msaSpeechRecognizer);
+
   //--- Bot Framework setup ---
 
   const msaBotConfig = msaSpeechSdk.BotFrameworkConfig.fromSubscription(msaSpeechServiceKey, msaRegion, msaBotName);
   msaBotConfig.speechRecognitionLanguage = languageCode;
 
   const msaConnector = new msaSpeechSdk.DialogServiceConnector(msaBotConfig, msaAudioConfig);
+  console.log('>>> msaConnector:');
+  console.log(msaConnector);
+
 
   //--- TTS play to client over WebSocket ---
 
@@ -275,14 +318,16 @@ app.ws('/socket', async (ws, req) => {
 
     // console.log(JSON.stringify(event));
 
-    const botReply = event.privActivity.text;
-    console.log('Bot reply:', botReply);
+    console.log(event);
 
-    returnReply(latestTranscript, botReply, languageCode, originalUuid, webhookUrl, customQueryParams) ;
+    const botReply = event.privActivity.text;
+    // console.log('Bot reply:', botReply);
+
+    returnBotReply(latestTranscript, botReply, languageCode, originalUuid, webhookUrl, confName, customQueryParams);
 
     msaSpeechSynthesizer.speakTextAsync(botReply, (result) => {
       if (result.reason === msaSpeechSdk.ResultReason.SynthesizingAudioCompleted) {
-        console.log({result});
+        // console.log({result});
         playAudio(new Uint8Array(result.privAudioData));
       } else {
         console.log("speech synth ended with an error reason");
@@ -361,6 +406,8 @@ app.ws('/socket', async (ws, req) => {
       if (transcript != '') {
 
         latestTranscript = transcript;
+
+        returnTranscript(transcript, languageCode, originalUuid, webhookUrl, confName, customQueryParams);
         
         const inputActivity = `{ "type": "message", "text": "${transcript}" }`;
 
