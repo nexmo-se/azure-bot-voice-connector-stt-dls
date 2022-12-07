@@ -87,10 +87,11 @@ async function returnTranscript(text, languageCode, uuid, webhookUrl, conference
   
 //---  Send Bot reply (text) to client application ---
 
-async function returnBotReply(request, reply, languageCode, uuid, webhookUrl, conferenceName, customParams) {
+async function returnBotReply(request, reply, conversationId, languageCode, uuid, webhookUrl, conferenceName, customParams) {
 
   const result = {
     'vapiUuid': uuid,
+    'msaConversationId': conversationId,
     'request': request,
     'reply': reply,
     'languageCode': languageCode,
@@ -239,75 +240,6 @@ app.ws('/socket', async (ws, req) => {
   msaTtsSpeechConfig.speechSynthesisOutputFormat = 'Raw16Khz16BitMonoPcm';
   msaTtsSpeechConfig.speechSynthesisVoiceName = 'en-US-JennyNeural'; // temporary hard coding - TBD: to be set by the bot reply
 
-  // class PushAudioOutputStreamToClientCallback extends msaSpeechSdk.PushAudioOutputStreamCallback {
-  //   constructor(cb) {
-  //       super();
-  //       this.buffer;
-  //       this.length = 0;
-  //       this.isClosed = false;
-  //       this.cb = cb;
-  //   }
-
-  //   write(dataBuffer) {
-  //     try {
-  //       // console.log("writing to buffer...")
-  //       if (this.isClosed) {
-  //         console.log("you can't write while the buffer is closed");
-  //         throw new InvalidOperationError("PushAudioOutputStreamCallback already closed");
-  //       }
-  //       if (!this.buffer) {
-  //         this.buffer = new Uint8Array(dataBuffer);
-  //       } else {
-  //         const temp = new Uint8Array(this.length + dataBuffer.byteLength);
-  //         // console.log({buflen: this.length, data: dataBuffer});
-  //         temp.set(this.buffer, 0);
-  //         temp.set(dataBuffer, this.length);
-  //         // console.log(buf2hex(dataBuffer));
-  //         this.buffer = temp;
-  //       }
-  //       this.length += dataBuffer.byteLength;
-  //       // console.log("wrote to buffer:");
-  //       // console.log(this.length);
-  //       // console.log(dataBuffer);
-  //     } catch(e) {
-  //       console.log("failed to write");
-  //       console.log(e);
-  //     }
-      
-  //   }
-
-  //   close() {
-  //       if (this.isClosed) {
-  //           throw new InvalidOperationError("PushAudioOutputStreamCallback already closed");
-  //       }
-  //       this.isClosed = true;
-  //       console.log("completed buffer:");
-  //       // console.log(buf2hex(this.buffer));
-  //       b1 = new Uint8Array(this.buffer);
-  //       this.cb(this, this.buffer, this.length);
-  //       console.log("the buffer was closed");
-  //   }
-
-  //   // clearBuffer() {
-  //   //   this.buffer = undefined;
-  //   //   this.length = 0;
-  //   //   console.log("the buffer was cleared");
-  //   // }
-  // }
-
-  //---
-
-  // const replyAudioCallback = async (pushAudio, buffer, length) => {
-  //   console.log(`the full buffer is ${length} bytes long`);
-  //   // console.log(`the full buffer is ${length} bytes long, here it is:`);
-  //   // console.log(buffer);
-  //   // pushAudio.clearBuffer();
-
-  //   // send buffer payload over Vonage WebSocket to the client
-  //   await playAudio(buffer);
-
-  // };
-
   const msaSpeechSynthesizer = new msaSpeechSdk.SpeechSynthesizer(msaTtsSpeechConfig);
 
   //--- Azure Bot Framework operation ---
@@ -323,7 +255,9 @@ app.ws('/socket', async (ws, req) => {
     const botReply = event.privActivity.text;
     // console.log('Bot reply:', botReply);
 
-    returnBotReply(latestTranscript, botReply, languageCode, originalUuid, webhookUrl, confName, customQueryParams);
+    const msaConversationId = event.privActivity.conversation.id;
+
+    returnBotReply(latestTranscript, botReply, msaConversationId, languageCode, originalUuid, webhookUrl, confName, customQueryParams);
 
     msaSpeechSynthesizer.speakTextAsync(botReply, (result) => {
       if (result.reason === msaSpeechSdk.ResultReason.SynthesizingAudioCompleted) {
